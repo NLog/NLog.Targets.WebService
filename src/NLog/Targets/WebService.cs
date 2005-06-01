@@ -32,6 +32,8 @@
 // THE POSSIBILITY OF SUCH DAMAGE.
 // 
 
+#if DEFUNCT
+
 using System;
 using System.Collections;
 using System.Collections.Specialized;
@@ -41,10 +43,14 @@ using System.Web.Services.Protocols;
 
 using NLog.Config;
 
-namespace NLog.Appenders
+namespace NLog.Targets
 {
-    [Appender("WebServiceCall")]
-    public sealed class WebServiceCallAppender: MethodCallAppenderBase
+    /// <summary>
+    /// Calls the specified webservice on each logging message. NOT OPERATIONAL YET.
+    /// </summary>
+    
+    //[Target("WebServiceCall")]
+    public sealed class WebServiceCallTarget: MethodCallTargetBase
     {
         private GenericSoapHttpClientProtocol _client = new GenericSoapHttpClientProtocol();
         private string _methodName = null;
@@ -78,7 +84,7 @@ namespace NLog.Appenders
             _client.DoInvoke(MethodName, parameters);
         }
 
-        [System.Web.Services.WebServiceBindingAttribute(Name = "NLogService", Namespace = "http://nlog.sourceforge.net/appender/")]class GenericSoapHttpClientProtocol: SoapHttpClientProtocol
+        [System.Web.Services.WebServiceBindingAttribute(Name = "NLogService", Namespace = "http://nlog.sourceforge.net/target/")]class GenericSoapHttpClientProtocol: SoapHttpClientProtocol
         {
             public GenericSoapHttpClientProtocol(){}
 
@@ -89,3 +95,5 @@ namespace NLog.Appenders
         }
     }
 }
+
+#endif

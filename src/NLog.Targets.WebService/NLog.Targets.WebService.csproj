@@ -5,6 +5,13 @@
     <TargetFrameworks Condition=" '$(TargetFrameworks)' == '' AND '$(VisualStudioVersion)' &lt; '17.0' ">net46;netstandard2.0</TargetFrameworks>
     <TargetFrameworks Condition=" '$(TargetFrameworks)' == '' ">net46;netstandard2.0;netstandard2.1</TargetFrameworks>
 
+    <VersionPrefix>6.0.3</VersionPrefix>
+    <AssemblyVersion>6.0.0.0</AssemblyVersion>
+    <!-- Strong AssemblyVersion must be fixed on 6.0.0.0 -->
+    <AppVeyorBuildNumber>$(APPVEYOR_BUILD_NUMBER)</AppVeyorBuildNumber>
+    <AppVeyorBuildNumber Condition="'$(AppVeyorBuildNumber)' == ''">0</AppVeyorBuildNumber>
+    <FileVersion>$(VersionPrefix).$(AppVeyorBuildNumber)</FileVersion>
+
     <Title>NLog.Targets.WebService</Title>
     <Company>NLog</Company>
     <Description>WebServiceTarget for calling HTTP / SOAP / REST web-service methods</Description>
@@ -21,14 +28,13 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>NLog;WebService;Soap;Rest;HttpClient;Network;logging;log</PackageTags>
     <PackageIcon>N.png</PackageIcon>
-    <PackageProjectUrl>https://nlog-project.org/</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/NLog/NLog.Targets.WebService</PackageProjectUrl>
     <PackageLicenseExpression>BSD-3-Clause</PackageLicenseExpression>
     <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>https://github.com/NLog/NLog.git</RepositoryUrl>
+    <RepositoryUrl>https://github.com/NLog/NLog.Targets.WebService.git</RepositoryUrl>
 
     <SignAssembly>true</SignAssembly>
-    <AssemblyVersion>6.0.0.0</AssemblyVersion>
-    <AssemblyOriginatorKeyFile>..\NLog.snk</AssemblyOriginatorKeyFile>
+    <AssemblyOriginatorKeyFile>NLog.snk</AssemblyOriginatorKeyFile>
     <PublicSign Condition=" '$(OS)' != 'Windows_NT' ">true</PublicSign>
 
     <IsPackable>true</IsPackable>
@@ -67,14 +73,11 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
-  </ItemGroup>
-
-  <ItemGroup>   
-    <ProjectReference Include="..\NLog\NLog.csproj" />
+    <PackageReference Include="NLog" Version="6.0.3" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="README.md" Pack="true" PackagePath="" />
+    <None Include="../../README.md" Pack="true" PackagePath="" />
     <None Include="N.png" Pack="true" PackagePath="" visible="false" />
   </ItemGroup>
   <Target Name="DownloadMissingContent" BeforeTargets="GenerateNuspec">

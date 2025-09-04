@@ -1,5 +1,8 @@
 # NLog WebService Target
 
+[![Version](https://badge.fury.io/nu/NLog.Targets.WebService.svg)](https://www.nuget.org/packages/NLog.Targets.WebService)
+[![AppVeyor](https://img.shields.io/appveyor/ci/nlog/NLog-Targets-WebService/master.svg)](https://ci.appveyor.com/project/nlog/NLog-Targets-WebService/branch/master)
+
 NLog WebService Target for calling web-service for each logevent, with support for different protocols: JsonPost, XmlPost, HttpGet, HttpPost, Soap11, Soap12
 
 If having trouble with output, then check [NLog InternalLogger](https://github.com/NLog/NLog/wiki/Internal-Logging) for clues. See also [Troubleshooting NLog](https://github.com/NLog/NLog/wiki/Logging-Troubleshooting)

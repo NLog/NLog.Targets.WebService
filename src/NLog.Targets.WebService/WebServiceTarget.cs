@@ -234,7 +234,7 @@ namespace NLog.Targets
         /// Indicates whether to expect http 100-Continue behavior, where the client sends headers and expects a 100-Continue response from the server before sending the request body.
         /// </summary>
         /// <remarks>
-        /// .NET Framework's default is <see langword="true"/>, but this can cause delays espcially when http-server does not support the protocol. Setting this to false can improve performance in such cases.
+        /// .NET Framework's default is <see langword="true"/>, but this can cause delays especially when http-server does not support the protocol. Setting this to false can improve performance in such cases.
         /// </remarks>
         public bool? Expect100Continue { get; set; }
 

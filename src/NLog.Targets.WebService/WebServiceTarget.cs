@@ -230,6 +230,14 @@ namespace NLog.Targets
         /// <docgen category='Web Service Options' order='100' />
         public bool PreAuthenticate { get; set; }
 
+        /// <summary>
+        /// Indicates whether to expect http 100-Continue behavior, where the client sends headers and expects a 100-Continue response from the server before sending the request body.
+        /// </summary>
+        /// <remarks>
+        /// .NET Framework's default is <see langword="true"/>, but this can cause delays espcially when http-server does not support the protocol. Setting this to false can improve performance in such cases.
+        /// </remarks>
+        public bool? Expect100Continue { get; set; }
+
         private IJsonConverter JsonConverter => _jsonConverter ?? (_jsonConverter = ResolveService<IJsonConverter>());
         private IJsonConverter? _jsonConverter;
 
@@ -298,6 +306,11 @@ namespace NLog.Targets
         private HttpWebRequest CreateHttpWebRequest(Uri url)
         {
             var webRequest = (HttpWebRequest)WebRequest.Create(url);
+
+            if (Expect100Continue.HasValue)
+            {
+                webRequest.ServicePoint.Expect100Continue = Expect100Continue.Value;
+            }
 
             switch (ProxyType)
             {

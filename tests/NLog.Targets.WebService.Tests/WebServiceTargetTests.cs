@@ -112,6 +112,7 @@ namespace NLog.Targets.WebService
 
         private static void WebserviceTest_httppost_utf8(string bomAttr, bool includeBom)
         {
+            var mockHandler = new MockHttpMessageHandler();
             var logFactory = new LogFactory().Setup()
                                              .SetupExtensions(ext => ext.RegisterAssembly(typeof(WebServiceTarget).Assembly))
                                              .LoadConfigurationFromXml(@"
@@ -125,46 +126,32 @@ namespace NLog.Targets.WebService
             encoding='UTF-8'
             methodName='Foo'>
         <parameter name='empty' type='System.String' layout=''/> <!-- work around so the guid is decoded properly -->
-        <parameter name='guid' type='System.String' layout='${guid}'/>
+        <parameter name='guid' type='System.String' layout='336cec87129942eeabab3d8babceead7'/>
         <parameter name='m' type='System.String' layout='${message}'/>
-        <parameter name='date' type='System.String' layout='${longdate}'/>
+        <parameter name='date' type='System.String' layout='2014-06-26 23:15:14.6348'/>
         <parameter name='logger' type='System.String' layout='${logger}'/>
         <parameter name='level' type='System.String' layout='${level}'/>
     </target>
 </targets>
+<rules>
+    <logger name='*' minlevel='Debug' writeTo='webservice'/>
+</rules>
                 </nlog>").LogFactory;
 
             var target = logFactory.Configuration.FindTargetByName("webservice") as WebServiceTarget;
             Assert.NotNull(target);
+            target.SetHttpClient(new System.Net.Http.HttpClient(mockHandler));
 
             Assert.Equal(6, target.Parameters.Count);
-
             Assert.Equal("utf-8", target.Encoding.WebName);
 
-            //async call with mockup stream
-#pragma warning disable SYSLIB0014 // Type or member is obsolete
-            var webRequest = System.Net.WebRequest.Create("http://www.test.com");
-#pragma warning restore SYSLIB0014 // Type or member is obsolete
-            var httpWebRequest = (HttpWebRequest)webRequest;
-            var streamMock = new StreamMock();
+            logFactory.GetLogger("TestClient.Program").Debug("Debg");
+            logFactory.Flush();
 
-            //event for async testing
-            var counterEvent = new ManualResetEvent(false);
-
-            var parameterValues = new object[] { "", "336cec87129942eeabab3d8babceead7", "Debg", "2014-06-26 23:15:14.6348", "TestClient.Program", "Debug" };
-            target.DoInvoke(parameterValues, c => counterEvent.Set(), httpWebRequest,
-                (request, callback) =>
-                {
-                    var t = new Task(() => { });
-                    callback(t);
-                    return t;
-                },
-                (request, result) => streamMock);
-
-            counterEvent.WaitOne(10000);
-
-            var bytes = streamMock.bytes;
-            var url = streamMock.stringed;
+            Assert.NotNull(mockHandler.LastRequest);
+            Assert.NotNull(mockHandler.LastRequest.Content);
+            var bytes = mockHandler.LastRequestBody;
+            var url = System.Text.Encoding.UTF8.GetString(bytes).TrimStart('\uFEFF');
 
             const string expectedUrl = "empty=&guid=336cec87129942eeabab3d8babceead7&m=Debg&date=2014-06-26+23%3A15%3A14.6348&logger=TestClient.Program&level=Debug";
             Assert.Equal(expectedUrl, url);
@@ -186,27 +173,22 @@ namespace NLog.Targets.WebService
         }
 
         /// <summary>
-        /// Mock the stream
+        /// Captures the last HTTP request sent through it.
         /// </summary>
-        private class StreamMock : MemoryStream
+        private sealed class MockHttpMessageHandler : System.Net.Http.HttpMessageHandler
         {
-            public byte[] bytes;
-            public string stringed;
+            public System.Net.Http.HttpRequestMessage LastRequest { get; private set; }
+            public byte[] LastRequestBody { get; private set; }
 
-            protected override void Dispose(bool disposing)
+            protected override System.Threading.Tasks.Task<System.Net.Http.HttpResponseMessage> SendAsync(
+                System.Net.Http.HttpRequestMessage request,
+                System.Threading.CancellationToken cancellationToken)
             {
-                //save stuff before dispose
-                Flush();
-                bytes = ToArray();
-                stringed = StreamToString(this);
-                base.Dispose(disposing);
-            }
-
-            private static string StreamToString(Stream s)
-            {
-                s.Position = 0;
-                var sr = new StreamReader(s);
-                return sr.ReadToEnd();
+                LastRequest = request;
+                if (request.Content != null)
+                    LastRequestBody = request.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+                return System.Threading.Tasks.Task.FromResult(
+                    new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK));
             }
         }
 

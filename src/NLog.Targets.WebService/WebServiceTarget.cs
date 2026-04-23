@@ -296,10 +296,28 @@ namespace NLog.Targets
                         InternalLogger.Error(ex, "{0}: Error receiving response for url={1}", this, url);
                         DoInvokeCompleted(continuation, ex);
                     }
+                    else if (task.IsCanceled)
+                    {
+                        var ex = new OperationCanceledException("Request was canceled.");
+                        InternalLogger.Error(ex, "{0}: Request was canceled for url={1}", this, url);
+                        DoInvokeCompleted(continuation, ex);
+                    }
                     else
                     {
-                        task.Result.Dispose();
-                        DoInvokeCompleted(continuation, null);
+                        try
+                        {
+                            using (var response = task.Result)
+                            {
+                                response.EnsureSuccessStatusCode();
+                            }
+
+                            DoInvokeCompleted(continuation, null);
+                        }
+                        catch (Exception ex)
+                        {
+                            InternalLogger.Error(ex, "{0}: Error receiving response for url={1}", this, url);
+                            DoInvokeCompleted(continuation, ex);
+                        }
                     }
                 }, System.Threading.CancellationToken.None, System.Threading.Tasks.TaskContinuationOptions.DenyChildAttach, System.Threading.Tasks.TaskScheduler.Default);  // DenyChildAttach - Skip capture SynchronizationContext
             }

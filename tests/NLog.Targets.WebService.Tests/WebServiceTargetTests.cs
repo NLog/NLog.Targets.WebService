@@ -172,11 +172,60 @@ namespace NLog.Targets.WebService
             Assert.Equal(bytes.Length, includeBom ? 126 : 123);
         }
 
+        [Fact]
+        public void WebserviceTest_httppost_error_statuscode_reports_exception()
+        {
+            var mockHandler = new MockHttpMessageHandler(System.Net.HttpStatusCode.InternalServerError);
+            var logFactory = new LogFactory().Setup()
+                                             .SetupExtensions(ext => ext.RegisterAssembly(typeof(WebServiceTarget).Assembly))
+                                             .LoadConfigurationFromXml(@"
+                <nlog throwExceptions='false'>
+                    <targets>
+                        <target type='WebService'
+                                name='webservice'
+                                url='http://localhost:57953/Home/Foo2'
+                                protocol='HttpPost'
+                                encoding='UTF-8'
+                                methodName='Foo'>
+                            <parameter name='m' type='System.String' layout='${message}'/>
+                        </target>
+                    </targets>
+                    <rules>
+                        <logger name='*' minlevel='Debug' writeTo='webservice'/>
+                    </rules>
+                </nlog>").LogFactory;
+
+            var target = logFactory.Configuration.FindTargetByName("webservice") as WebServiceTarget;
+            Assert.NotNull(target);
+            target.SetHttpClient(new System.Net.Http.HttpClient(mockHandler));
+
+            Exception reportedException = null;
+            var manualResetEvent = new System.Threading.ManualResetEventSlim(false);
+
+            NLog.Common.AsyncContinuation continuation = ex =>
+            {
+                reportedException = ex;
+                manualResetEvent.Set();
+            };
+
+            target.WriteAsyncLogEvent(new NLog.Common.AsyncLogEventInfo(LogEventInfo.Create(LogLevel.Info, "test", "Hello"), continuation));
+
+            Assert.True(manualResetEvent.Wait(5000), "Timed out waiting for async response");
+            Assert.NotNull(reportedException);
+            Assert.IsType<System.Net.Http.HttpRequestException>(reportedException);
+        }
+
         /// <summary>
         /// Captures the last HTTP request sent through it.
         /// </summary>
         private sealed class MockHttpMessageHandler : System.Net.Http.HttpMessageHandler
         {
+            private readonly System.Net.HttpStatusCode _statusCode;
+
+            public MockHttpMessageHandler(System.Net.HttpStatusCode statusCode = System.Net.HttpStatusCode.OK)
+            {
+                _statusCode = statusCode;
+            }
             public System.Net.Http.HttpRequestMessage LastRequest { get; private set; }
             public byte[] LastRequestBody { get; private set; }
 
@@ -188,7 +237,7 @@ namespace NLog.Targets.WebService
                 if (request.Content != null)
                     LastRequestBody = request.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
                 return System.Threading.Tasks.Task.FromResult(
-                    new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK));
+                    new System.Net.Http.HttpResponseMessage(_statusCode));
             }
         }
 

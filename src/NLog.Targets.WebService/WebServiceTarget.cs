@@ -259,15 +259,17 @@ namespace NLog.Targets
         protected override void DoInvoke(object?[] parameters, AsyncLogEventInfo logEvent)
         {
             Uri? url = null;
-            HttpRequestMessage? request = null;
+            HttpRequestMessage request;
+
+            var continuation = logEvent.Continuation;
 
             try
             {
                 url = BuildWebServiceUrl(logEvent.LogEvent, parameters);
-                if (url == null)
+                if (url is null)
                 {
                     InternalLogger.Error("{0}: Error creating request with invalid url={1}", this, Url);
-                    logEvent.Continuation(new ArgumentException("Invalid Url for HttpClient"));
+                    continuation(new ArgumentException("Invalid Url for HttpClient"));
                     return;
                 }
 
@@ -276,12 +278,11 @@ namespace NLog.Targets
             catch (Exception ex)
             {
                 InternalLogger.Error(ex, "{0}: Error creating request for url={1}", this, url);
-                request?.Dispose();
+                continuation(ex);
                 throw;
             }
 
             var httpClient = ResolveHttpClient(logEvent.LogEvent);
-            var continuation = logEvent.Continuation;
 
             System.Threading.Interlocked.Increment(ref _pendingWriteOperations);
 
@@ -300,9 +301,6 @@ namespace NLog.Targets
                     {
                         try
                         {
-                            if (task.IsCanceled)
-                                throw new OperationCanceledException("HTTP Request was canceled.");
-
                             using (var response = task.Result)
                             {
                                 response.EnsureSuccessStatusCode();

@@ -259,15 +259,17 @@ namespace NLog.Targets
         protected override void DoInvoke(object?[] parameters, AsyncLogEventInfo logEvent)
         {
             Uri? url = null;
-            HttpRequestMessage? request = null;
+            HttpRequestMessage request;
+
+            var continuation = logEvent.Continuation;
 
             try
             {
                 url = BuildWebServiceUrl(logEvent.LogEvent, parameters);
-                if (url == null)
+                if (url is null)
                 {
                     InternalLogger.Error("{0}: Error creating request with invalid url={1}", this, Url);
-                    logEvent.Continuation(new ArgumentException("Invalid Url for HttpClient"));
+                    continuation(new ArgumentException("Invalid Url for HttpClient"));
                     return;
                 }
 
@@ -276,12 +278,13 @@ namespace NLog.Targets
             catch (Exception ex)
             {
                 InternalLogger.Error(ex, "{0}: Error creating request for url={1}", this, url);
-                request?.Dispose();
+                continuation(ex);
                 throw;
             }
 
             var httpClient = ResolveHttpClient(logEvent.LogEvent);
-            var continuation = logEvent.Continuation;
+
+            var httpStatusCode = default(HttpStatusCode);
 
             System.Threading.Interlocked.Increment(ref _pendingWriteOperations);
 
@@ -300,11 +303,9 @@ namespace NLog.Targets
                     {
                         try
                         {
-                            if (task.IsCanceled)
-                                throw new OperationCanceledException("HTTP Request was canceled.");
-
                             using (var response = task.Result)
                             {
+                                httpStatusCode = response.StatusCode;
                                 response.EnsureSuccessStatusCode();
                             }
 
@@ -322,12 +323,17 @@ namespace NLog.Targets
             {
                 InternalLogger.Error(ex, "{0}: Error starting request for url={1}", this, url);
                 request.Dispose();
+                if (httpStatusCode == 0 && (NLog.Time.TimeSource.Current.Time - _httpClientExpiry) > TimeSpan.FromSeconds(5))
+                {
+                    _httpClientExpiry = DateTime.MinValue;  // Force HttpClient renewal on next request, to clear the stale HttpClient connection pool.
+                }
+
+                DoInvokeCompleted(continuation, ex);
+
                 if (LogManager.ThrowExceptions)
                 {
                     throw;
                 }
-
-                DoInvokeCompleted(continuation, ex);
             }
         }
 
@@ -763,7 +769,7 @@ namespace NLog.Targets
                     xtw.WriteStartElement("Body", SoapEnvelopeNamespace);
                     xtw.WriteStartElement(Target.MethodName, Target.Namespace);
 
-                    WriteAllParametersToCurrenElement(xtw, parameterValues);
+                    WriteAllParametersToCurrentElement(xtw, parameterValues);
 
                     xtw.WriteEndElement(); // method name
                     xtw.WriteEndElement(); // Body
@@ -852,7 +858,7 @@ namespace NLog.Targets
                 {
                     xtw.WriteStartElement(Target.XmlRoot, Target.XmlRootNamespace);
 
-                    WriteAllParametersToCurrenElement(xtw, parameterValues);
+                    WriteAllParametersToCurrentElement(xtw, parameterValues);
 
                     xtw.WriteEndElement();
                     xtw.Flush();
@@ -866,7 +872,7 @@ namespace NLog.Targets
             {
             }
 
-            protected void WriteAllParametersToCurrenElement(XmlWriter currentXmlWriter, object?[] parameterValues)
+            protected void WriteAllParametersToCurrentElement(XmlWriter currentXmlWriter, object?[] parameterValues)
             {
                 for (int i = 0; i < Target.Parameters.Count; i++)
                 {

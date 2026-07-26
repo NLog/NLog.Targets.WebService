@@ -5,7 +5,7 @@
     <TargetFrameworks Condition=" '$(TargetFrameworks)' == '' AND '$(VisualStudioVersion)' &lt; '17.0' ">net46;netstandard2.0</TargetFrameworks>
     <TargetFrameworks Condition=" '$(TargetFrameworks)' == '' ">net46;netstandard2.0;netstandard2.1</TargetFrameworks>
 
-    <VersionPrefix>6.1.1</VersionPrefix>
+    <VersionPrefix>6.1.4</VersionPrefix>
     <AssemblyVersion>6.0.0.0</AssemblyVersion>
     <!-- Strong AssemblyVersion must be fixed on 6.0.0.0 -->
     <AppVeyorBuildNumber>$(APPVEYOR_BUILD_NUMBER)</AppVeyorBuildNumber>
@@ -23,10 +23,8 @@
 
     <PackageReleaseNotes>
 Changelog:
-- First release after extracting to own git repository.
-- Added option Expect100Continue to reduce latency of HTTP requests.
-- Improved Assembly Title to include target framework details.
-- Update to NLog ver. 6.1.1.
+- Changed from obsolete HttpWebRequest to HttpClient.
+- Update to NLog ver. 6.1.4.
       
 WebServiceTarget Docs:
 https://github.com/NLog/NLog/wiki/WebService-target
@@ -75,7 +73,7 @@ https://github.com/NLog/NLog/wiki/WebService-target
 
   <ItemGroup>
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
-    <PackageReference Include="NLog" Version="6.1.1" />
+    <PackageReference Include="NLog" Version="6.1.4" />
   </ItemGroup>
 
   <PropertyGroup>

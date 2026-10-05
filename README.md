@@ -5,7 +5,7 @@
 
 NLog WebService Target for calling web-service for each logevent, with support for different protocols: JsonPost, XmlPost, HttpGet, HttpPost, Soap11, Soap12
 
-Notice for batching of multiple LogEvents into single HTTP payload, then consider the [NLog.Targets.HttpClient](https://www.nuget.org/packages/NLog.Targets.HttpClient) as alternative.
+Notice if need to batch of multiple LogEvents in a single HTTP payload, then checkout [NLog.Targets.HttpClient](https://www.nuget.org/packages/NLog.Targets.HttpClient).
 
 If having trouble with output, then check [NLog InternalLogger](https://github.com/NLog/NLog/wiki/Internal-Logging) for clues. See also [Troubleshooting NLog](https://github.com/NLog/NLog/wiki/Logging-Troubleshooting)
 

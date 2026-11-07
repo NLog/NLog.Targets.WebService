@@ -2,6 +2,7 @@
 
 [![Version](https://badge.fury.io/nu/NLog.Targets.WebService.svg)](https://www.nuget.org/packages/NLog.Targets.WebService)
 [![GitHub Actions](https://github.com/NLog/NLog.Targets.WebService/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/NLog/NLog.Targets.WebService/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/NLog/NLog.Targets.WebService/graph/badge.svg?token=OUSUTBJVFE)](https://codecov.io/gh/NLog/NLog.Targets.WebService)
 
 NLog WebService Target for calling web-service for each logevent, with support for different protocols: JsonPost, XmlPost, HttpGet, HttpPost, Soap11, Soap12
 

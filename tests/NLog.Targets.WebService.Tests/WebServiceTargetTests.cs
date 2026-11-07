@@ -43,6 +43,7 @@ namespace NLog.Targets.WebService
     using System.Runtime.Serialization;
     using System.Threading;
     using System.Threading.Tasks;
+    using System.Xml.Linq;
     using System.Xml.Serialization;
 #if NETFRAMEWORK
     using System.Web.Http;
@@ -213,6 +214,151 @@ namespace NLog.Targets.WebService
             Assert.True(manualResetEvent.Wait(5000), "Timed out waiting for async response");
             Assert.NotNull(reportedException);
             Assert.IsType<System.Net.Http.HttpRequestException>(reportedException);
+        }
+
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(false, true)]
+        [InlineData(true, false)]
+        [InlineData(true, true)]
+        public void WebserviceTest_httpget_encodes_parameters_and_preserves_query(bool escapeDataRfc3986, bool escapeDataNLogLegacy)
+        {
+            // Arrange
+            var mockHandler = new MockHttpMessageHandler();
+            var logFactory = new LogFactory().Setup()
+                                             .SetupExtensions(ext => ext.RegisterAssembly(typeof(WebServiceTarget).Assembly))
+                                             .LoadConfigurationFromXml(@"
+                <nlog>
+                    <targets>
+                        <target type='WebService' name='webservice'
+                                url='http://localhost:57953/log?source=config'
+                                protocol='HttpGet'>
+                            <parameter name='message' type='System.String' layout='${message}'/>
+                        </target>
+                    </targets>
+                    <rules>
+                        <logger name='*' minlevel='Info' writeTo='webservice'/>
+                    </rules>
+                </nlog>").LogFactory;
+
+            var target = logFactory.Configuration.FindTargetByName("webservice") as WebServiceTarget;
+            Assert.NotNull(target);
+            target.SetHttpClient(new System.Net.Http.HttpClient(mockHandler));
+#pragma warning disable CS0618
+            target.EscapeDataRfc3986 = escapeDataRfc3986;
+            target.EscapeDataNLogLegacy = escapeDataNLogLegacy;
+#pragma warning restore CS0618
+
+            // Act
+            logFactory.GetLogger("TestClient").Info("a b&c");
+            logFactory.Flush();
+
+            // Assert
+            Assert.NotNull(mockHandler.LastRequest);
+            Assert.Equal(System.Net.Http.HttpMethod.Get, mockHandler.LastRequest.Method);
+            Assert.Equal("?source=config&message=a+b%26c", mockHandler.LastRequest.RequestUri.Query);
+        }
+
+        [Fact]
+        public void WebserviceTest_jsonpost_escapes_string_values()
+        {
+            // Arrange
+            var mockHandler = new MockHttpMessageHandler();
+            var logFactory = new LogFactory().Setup()
+                                             .SetupExtensions(ext => ext.RegisterAssembly(typeof(WebServiceTarget).Assembly))
+                                             .LoadConfigurationFromXml(@"
+                <nlog>
+                    <targets>
+                        <target type='WebService' name='webservice'
+                                url='http://localhost:57953/log'
+                                protocol='JsonPost'>
+                            <parameter name='message' type='System.String' layout='${message}'/>
+                        </target>
+                    </targets>
+                    <rules>
+                        <logger name='*' minlevel='Info' writeTo='webservice'/>
+                    </rules>
+                </nlog>").LogFactory;
+
+            var target = logFactory.Configuration.FindTargetByName("webservice") as WebServiceTarget;
+            Assert.NotNull(target);
+            target.SetHttpClient(new System.Net.Http.HttpClient(mockHandler));
+
+            // Act
+            logFactory.GetLogger("TestClient").Info("quote \" and newline\n");
+            logFactory.Flush();
+
+            // Assert
+            Assert.NotNull(mockHandler.LastRequest);
+            Assert.Equal("application/json", mockHandler.LastRequest.Content.Headers.ContentType.MediaType);
+            Assert.Equal("{\"message\":\"quote \\\" and newline\\n\"}", System.Text.Encoding.UTF8.GetString(mockHandler.LastRequestBody));
+        }
+
+        [Theory]
+        [InlineData("Soap11", "text/xml", "http://schemas.xmlsoap.org/soap/envelope/")]
+        [InlineData("Soap12", "application/soap+xml", "http://www.w3.org/2003/05/soap-envelope")]
+        [InlineData("XmlPost", "application/xml", "")]
+        public void WebserviceTest_xml_post_protocols_format_requests(string protocol, string expectedMediaType, string expectedEnvelopeNamespace)
+        {
+            // Arrange
+            var mockHandler = new MockHttpMessageHandler();
+            var logFactory = new LogFactory().Setup()
+                                             .SetupExtensions(ext => ext.RegisterAssembly(typeof(WebServiceTarget).Assembly))
+                                             .LoadConfigurationFromXml(@"
+                <nlog>
+                    <targets>
+                        <target type='WebService' name='webservice'
+                                url='http://localhost:57953/log'
+                                protocol='" + protocol + @"'
+                                namespace='urn:test' methodName='Log' XmlRoot='LogEvent'>
+                            <parameter name='message' type='System.String' layout='${message}'/>
+                        </target>
+                    </targets>
+                    <rules>
+                        <logger name='*' minlevel='Info' writeTo='webservice'/>
+                    </rules>
+                </nlog>").LogFactory;
+
+            var target = logFactory.Configuration.FindTargetByName("webservice") as WebServiceTarget;
+            Assert.NotNull(target);
+            target.SetHttpClient(new System.Net.Http.HttpClient(mockHandler));
+
+            // Act
+            logFactory.GetLogger("TestClient").Info("value <&>");
+            logFactory.Flush();
+
+            // Assert
+            Assert.NotNull(mockHandler.LastRequest);
+            Assert.Equal(System.Net.Http.HttpMethod.Post, mockHandler.LastRequest.Method);
+            Assert.Equal(expectedMediaType, mockHandler.LastRequest.Content.Headers.ContentType.MediaType);
+
+            var document = XDocument.Parse(System.Text.Encoding.UTF8.GetString(mockHandler.LastRequestBody));
+            Assert.NotNull(document.Root);
+            if (string.IsNullOrEmpty(expectedEnvelopeNamespace))
+            {
+                Assert.Equal("LogEvent", document.Root.Name.LocalName);
+                Assert.Equal("value <&>", document.Root.Element(XName.Get("message"))?.Value);
+                return;
+            }
+
+            Assert.Equal("Envelope", document.Root.Name.LocalName);
+            Assert.Equal(expectedEnvelopeNamespace, document.Root.Name.NamespaceName);
+            var soapBody = document.Root.Element(XName.Get("Body", expectedEnvelopeNamespace));
+            Assert.NotNull(soapBody);
+            var method = soapBody.Elements().Single();
+            Assert.Equal("Log", method.Name.LocalName);
+            Assert.Equal("urn:test", method.Name.NamespaceName);
+            Assert.Equal("value <&>", method.Element(XName.Get("message", "urn:test"))?.Value);
+
+            if (protocol == "Soap11")
+            {
+                Assert.Equal("urn:test/Log", Assert.Single(mockHandler.LastRequest.Headers.GetValues("SOAPAction")));
+            }
+            else
+            {
+                var action = mockHandler.LastRequest.Content.Headers.ContentType.Parameters.Single(parameter => parameter.Name == "action").Value;
+                Assert.Equal("urn:test/Log", action.Trim('"'));
+            }
         }
 
         /// <summary>
